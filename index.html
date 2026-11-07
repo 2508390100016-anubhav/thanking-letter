@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Letter For You</title>
+<style>
+:root{--bg:#07070c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+</style></head><body><canvas id="c"></canvas>
+<script>
+// Open  letter.html#Priya  to put a name in the message (share that link).
+const NAME = decodeURIComponent(location.hash.slice(1)) || "You";
+const MSG = ["Hey " + NAME + ",", "this little letter is just for you.", "You make ordinary days special.", "Glad you are in my life <3"];
+const ramp = " .:-=+*#%@", cv = document.getElementById("c"), g = cv.getContext("2d");
+let W, H, FS, CW, CH, COLS, ROWS, openAt = null, last = performance.now(), parts = [], nextB = 0;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x)), ease = x => x * x * (3 - 2 * x);
+function fit() {
+  const d = devicePixelRatio || 1;
+  W = cv.width = innerWidth * d; H = cv.height = innerHeight * d;
+  FS = clamp(innerWidth / 48, 9, 18) * d;
+  g.font = FS + 'px "Courier New",monospace'; g.textBaseline = "top";
+  CW = g.measureText("M").width; CH = FS * 1.15; COLS = W / CW | 0; ROWS = H / CH | 0;
+}
+addEventListener("resize", fit); fit();
+addEventListener("pointerdown", () => { if (openAt === null) openAt = performance.now(); });
+setTimeout(() => { if (openAt === null) openAt = performance.now(); }, 5000);
+function put(x, y, ch, col) {
+  x |= 0; y |= 0; if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return;
+  g.fillStyle = col; g.fillText(ch, x * CW, y * CH);
+}
+function line(x0, y0, x1, y1, ch, col) {
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0 || 1;
+  for (let i = 0; i <= n; i++) put(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, ch, col);
+}
+function center(s, y, col, n = s.length) {
+  const x0 = (COLS - s.length) / 2 | 0;
+  for (let i = 0; i < Math.min(n, s.length); i++) put(x0 + i, y, s[i], col);
+}
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1e3); last = now;
+  g.fillStyle = "#07070c"; g.fillRect(0, 0, W, H);
+  g.font = FS + 'px "Courier New",monospace'; g.textBaseline = "top";
+  const T = openAt === null ? -1 : (now - openAt) / 1e3;
+  const ew = Math.min(COLS - 4, 40), eh = Math.max(6, ew * .42 | 0), ex = (COLS - ew) / 2 | 0;
+  const ey = Math.max(8, ROWS - eh - 7), cx = COLS / 2, R = Math.max(3, Math.min(ey / 2.3, 10));
+  const cream = "#ffcfb0", dim = "#8a5a4a";
+  // heart rising out of the envelope
+  const hp = ease(clamp((T - 1.2) / 2.2));
+  if (hp > 0) {
+    const cyF = ey - R - 1, cy = ey + eh / 2 + (cyF - ey - eh / 2) * hp;
+    const r = R * (.3 + .7 * hp) * (1 + .05 * Math.sin(now / 150)), asp = CW / CH;
+    for (let j = Math.max(0, cy - r * 1.1 | 0); j < ey && j < cy + r * 1.1; j++)
+      for (let i = cx - r * 2 | 0; i < cx + r * 2; i++) {
+        const u = (i - cx) * asp / r * 1.3, v = (cy - j) / r * 1.3;
+        const f = Math.pow(u * u + v * v - 1, 3) - u * u * v * v * v;
+        if (f <= 0) { const d = clamp(-f * 2.5); put(i, j, ramp[2 + (d * 7.99 | 0)], `hsl(${350 + d * 10},90%,${45 + d * 20}%)`); }
+      }
+  }
+  // envelope body
+  for (let y = 0; y <= eh; y++) for (let x = 0; x < ew; x++) {
+    const edge = y == 0 || y == eh || x == 0 || x == ew - 1;
+    put(ex + x, ey + y, edge ? "#" : (x + y) % 4 ? " " : ".", edge ? cream : dim);
+  }
+  line(ex, ey + eh, cx, ey + eh * .55, "/", dim); line(ex + ew - 1, ey + eh, cx, ey + eh * .55, "\\", dim);
+  // flap
+  const o = T < 0 ? 0 : ease(clamp(T / 1.4)), tipY = ey + eh * .55 * Math.cos(o * Math.PI);
+  const down = tipY > ey + 1, up = tipY < ey - 1;
+  line(ex, ey, cx, tipY, down ? "\\" : up ? "/" : "-", cream);
+  line(ex + ew - 1, ey, cx, tipY, down ? "/" : up ? "\\" : "-", cream);
+  // fireworks
+  if (T > 3 && now > nextB) {
+    nextB = now + 900;
+    const bx = COLS * (.2 + .6 * Math.random()), by = ROWS * (.1 + .3 * Math.random()), h = Math.random() * 360;
+    for (let k = 0; k < 46; k++) { const a = Math.random() * 6.283, s = 4 + Math.random() * 9; parts.push({ x: bx, y: by, vx: Math.cos(a) * s * 1.9, vy: Math.sin(a) * s, l: 1, h }); }
+  }
+  parts = parts.filter(p => p.l > 0);
+  for (const p of parts) {
+    p.vy += 9 * dt; p.vx *= .985; p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt * .55;
+    put(p.x, p.y, ramp[Math.max(1, p.l * 9 | 0)], `hsl(${p.h},100%,${40 + p.l * 30}%)`);
+  }
+  // text
+  if (T < 0) {
+    center("A  L E T T E R  F O R  Y O U", 2, cream);
+    if (now / 500 % 2 < 1.4) center("[ tap the letter to open ]", ey + eh + 3, dim);
+  } else if (T > 3.2) {
+    let n = (T - 3.2) * 24 | 0;
+    MSG.forEach((s, i) => { center(s, ey + eh + 2 + i, i == 3 ? "#ff7a9a" : cream, Math.max(0, n)); n -= s.length; });
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></body></html>
